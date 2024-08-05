@@ -7,3 +7,6 @@
 /invidious
 /sentry
 /config/config.yml
+
+# sst
+.sst
