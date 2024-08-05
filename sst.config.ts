@@ -18,6 +18,7 @@ export default $config({
   async run() {
     const dbUserSecret = new sst.Secret("DbUser");
     const dbPassSecret = new sst.Secret("DbPass");
+    const hmacKey = new sst.Secret("HmacKey");
 
     const tailnetKey = new tailscale.TailnetKey("tailnetKey", {
       reusable: true,
@@ -97,7 +98,7 @@ check_tables: true
 # domain:
 # https_only: false
 # statistics_enabled: false
-hmac_key: "=w(6>PNFLV^zDtZh0P3:%"`,
+hmac_key: "${hmacKey.value}"`,
         ],
         ports: [
           {
