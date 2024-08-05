@@ -114,6 +114,7 @@ hmac_key: "=w(6>PNFLV^zDtZh0P3:%"`,
           timeout: "5s",
           retries: 2,
         },
+        logDriver: "json-file",
         logOpts: {
           "max-size": "1G",
           "max-file": "4",
