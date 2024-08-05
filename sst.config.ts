@@ -69,10 +69,6 @@ export default $config({
           `TS_SERVE_CONFIG=/config/serve.json`,
           `TS_STATE_DIR=/var/lib/tailscale`,
         ],
-        // command: ["tailscaled", "--tun=userspace-networking"],
-        // entrypoints: [
-        //   'sh -c "tailscaled & tailscale up --accept-routes && tailscale serve --bg 3000 && sleep infinity"',
-        // ],
       },
     );
 
