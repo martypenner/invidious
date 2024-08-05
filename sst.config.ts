@@ -24,6 +24,43 @@ export default $config({
       reusable: true,
       ephemeral: true,
       preauthorized: true,
+      expiry: 60 * 60 * 24 * 7,
+    });
+
+    const tailscaleContainer = new docker.Container("tailscale", {
+      name: "tailscale",
+      image: "tailscale/tailscale:latest",
+      hostname: "hometube",
+      restart: "unless-stopped",
+      mounts: [
+        {
+          target: "/dev/net/tun",
+          source: "/dev/net/tun",
+          type: "bind",
+          readOnly: false,
+        },
+      ],
+
+      volumes: [
+        {
+          hostPath: path.join(process.cwd(), "./ts-state"),
+          containerPath: "/var/lib/tailscale",
+        },
+        {
+          hostPath: path.join(process.cwd(), "./ts-config"),
+          containerPath: "/config",
+        },
+      ],
+      capabilities: { adds: ["NET_ADMIN", "SYS_MODULE"] },
+      envs: [
+        $interpolate`TS_AUTHKEY=${tailnetKey.key}`,
+        `TS_EXTRA_ARGS=--advertise-tags=tag:container`,
+        `TS_SERVE_CONFIG=/config/serve.json`,
+        `TS_STATE_DIR=/var/lib/tailscale`,
+      ],
+      // entrypoints: [
+      //   'sh -c "tailscaled & tailscale up --accept-routes && tailscale serve --bg 3000 && sleep infinity"',
+      // ],
     });
 
     const postgresVolume = new docker.Volume("postgresData", {
@@ -37,6 +74,7 @@ export default $config({
     const dbContainer = new docker.Container("invidious-db", {
       name: "invidious-db",
       image: "docker.io/library/postgres:14",
+      networkMode: $interpolate`service:${tailscaleContainer.name}`,
       networksAdvanced: [
         {
           name: network.name,

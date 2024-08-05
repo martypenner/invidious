@@ -11,6 +11,10 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "HmacKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
   }
 }
 export {}
