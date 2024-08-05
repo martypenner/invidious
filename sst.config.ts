@@ -27,57 +27,65 @@ export default $config({
       expiry: 60 * 60 * 24 * 7,
     });
 
-    const tailscaleContainer = new docker.Container("tailscale", {
-      name: "tailscale",
-      image: "tailscale/tailscale:latest",
-      hostname: "hometube",
-      restart: "unless-stopped",
-      mounts: [
-        {
-          target: "/dev/net/tun",
-          source: "/dev/net/tun",
-          type: "bind",
-          readOnly: false,
-        },
-      ],
-
-      volumes: [
-        {
-          hostPath: path.join(process.cwd(), "./ts-state"),
-          containerPath: "/var/lib/tailscale",
-        },
-        {
-          hostPath: path.join(process.cwd(), "./ts-config"),
-          containerPath: "/config",
-        },
-      ],
-      capabilities: { adds: ["NET_ADMIN", "SYS_MODULE"] },
-      envs: [
-        $interpolate`TS_AUTHKEY=${tailnetKey.key}`,
-        `TS_EXTRA_ARGS=--advertise-tags=tag:container`,
-        `TS_SERVE_CONFIG=/config/serve.json`,
-        `TS_STATE_DIR=/var/lib/tailscale`,
-      ],
-      // entrypoints: [
-      //   'sh -c "tailscaled & tailscale up --accept-routes && tailscale serve --bg 3000 && sleep infinity"',
-      // ],
+    const appNetwork = new docker.Network("app-network", {
+      name: "app-network",
+      driver: "bridge",
     });
+
+    const tailscaleSidecarContainer = new docker.Container(
+      "invidious-tailscale",
+      {
+        name: "invidious-tailscale",
+        image: "tailscale/tailscale:latest",
+        hostname: "hometube",
+        networksAdvanced: [
+          {
+            name: appNetwork.name,
+          },
+        ],
+        restart: "unless-stopped",
+        mounts: [
+          {
+            target: "/dev/net/tun",
+            source: "/dev/net/tun",
+            type: "bind",
+            readOnly: false,
+          },
+        ],
+        volumes: [
+          {
+            hostPath: path.join(process.cwd(), "./ts-state"),
+            containerPath: "/var/lib/tailscale",
+          },
+          {
+            hostPath: path.join(process.cwd(), "./ts-config"),
+            containerPath: "/config",
+          },
+        ],
+        capabilities: { adds: ["NET_ADMIN", "SYS_MODULE"] },
+        envs: [
+          $interpolate`TS_AUTHKEY=${tailnetKey.key}`,
+          `TS_EXTRA_ARGS=--advertise-tags=tag:container`,
+          `TS_SERVE_CONFIG=/config/serve.json`,
+          `TS_STATE_DIR=/var/lib/tailscale`,
+        ],
+        // command: ["tailscaled", "--tun=userspace-networking"],
+        // entrypoints: [
+        //   'sh -c "tailscaled & tailscale up --accept-routes && tailscale serve --bg 3000 && sleep infinity"',
+        // ],
+      },
+    );
 
     const postgresVolume = new docker.Volume("postgresData", {
       name: "postgresData",
-    });
-    const network = new docker.Network("invidious-network", {
-      name: "invidious-network",
-      driver: "bridge",
     });
 
     const dbContainer = new docker.Container("invidious-db", {
       name: "invidious-db",
       image: "docker.io/library/postgres:14",
-      networkMode: $interpolate`service:${tailscaleContainer.name}`,
       networksAdvanced: [
         {
-          name: network.name,
+          name: appNetwork.name,
         },
       ],
       envs: [
@@ -116,9 +124,10 @@ export default $config({
       {
         name: "invidious",
         image: "quay.io/invidious/invidious:latest-arm64",
+        networkMode: $interpolate`container:${tailscaleSidecarContainer.name}`,
         networksAdvanced: [
           {
-            name: network.name,
+            name: appNetwork.name,
           },
         ],
         envs: [
@@ -138,13 +147,6 @@ check_tables: true
 # statistics_enabled: false
 hmac_key: "${hmacKey.value}"`,
         ],
-        ports: [
-          {
-            external: 3000,
-            internal: 3000,
-            ip: "127.0.0.1",
-          },
-        ],
         healthcheck: {
           tests: [
             "wget -nv --tries=1 --spider http://127.0.0.1:3000/api/v1/trending || exit 1",
@@ -160,7 +162,7 @@ hmac_key: "${hmacKey.value}"`,
         },
         restart: "unless-stopped",
       },
-      { dependsOn: [dbContainer] },
+      { dependsOn: [dbContainer, tailscaleSidecarContainer] },
     );
   },
 });
